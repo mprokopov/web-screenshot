@@ -7,7 +7,36 @@ var webshot = require('webshot'),
     stream = require('stream');
     base64 = require('base64-stream');
 
+///////////
+// CONFIG
+//////////
+var maxRunningParralelRenderingJobs = 2;
+//////////
+
 var runningProcessCounter = 0;
+
+var removeURLParameter = function(url, parameter) {
+    //prefer to use l.search if you have a location/link object
+    var urlparts= url.split('?');   
+    if (urlparts.length>=2) {
+
+        var prefix= encodeURIComponent(parameter)+'=';
+        var pars= urlparts[1].split(/[&;]/g);
+
+        //reverse iteration as may be destructive
+        for (var i= pars.length; i-- > 0;) {    
+            //idiom for string.startsWith
+            if (pars[i].lastIndexOf(prefix, 0) !== -1) {  
+                pars.splice(i, 1);
+            }
+        }
+
+        url= urlparts[0] + (pars.length > 0 ? '?' + pars.join('&') : "");
+        return url;
+    } else {
+        return url;
+    }
+};
 
 var processRequest = function (req, res, loopcount) {
 
@@ -18,19 +47,63 @@ var processRequest = function (req, res, loopcount) {
     if (typeof loopcount == "undefined") loopcount = 0;
 
     try {
-        if (runningProcessCounter>0) {
-            // drop request if over 500 requests waiting
-            if (runningProcessCounter>500) {
-                res.status(500);
-                res.send('service overload');
-                return;
-            }
-            console.log("BUSY REDIRECT");
+
+        // secure delete all temp files - just in case cleanup did not woirk
+        if (runningProcessCounter==0) {
+            try {
+             fs.readdirSync('screenshots').forEach(function(file,index){
+                var curPath = 'screenshots' + "/" + file;
+                if(!fs.lstatSync(curPath).isDirectory()) { // recurse
+                    fs.unlinkSync(curPath);
+                }
+            });
+           } catch(e) {
+               console.error("FAIL on cleaning temp files.",e);
+           }
+        }
+
+        // if already too much process running - send into redirection rebound after delay
+        if (runningProcessCounter>maxRunningParralelRenderingJobs) {
+
+            var bounceCounter = 0;
+            try {
+                
+                if ((typeof req.query.bounceCounter != "undefined")) {
+
+                    // use value from url
+                    if (!isNaN(req.query.bounceCounter)) {
+                        bounceCounter = req.query.bounceCounter;
+                        if (bounceCounter>100) {
+                            console.log("bounceCounter is VERY HIGH ... limit to 100");
+                            bounceCounter=100;
+                        }
+                        if (bounceCounter<1) {
+                            console.log("bounceCounter is NOT POSITIVE ... set to 1");
+                            bounceCounter=1;
+                        }
+                        bounceCounter++;
+                    } else {
+                        console.log("bounceCounter was not a number");
+                    }
+
+                    // remove from parameter form url string
+                    reqUrl = removeURLParameter(reqUrl, "bounceCounter");
+
+                }
+            } catch (e) { console.log("FAIL on bounceCounter upcounting"); }
+
+            // calculate delay until rebound
+            var delay = bounceCounter * 2000;
+
+            // add bounceCounter to redirect url
+            reqUrl = reqUrl + "&bounceCounter=" + bounceCounter;
+
+            console.log("BUSY REDIRECT (delay: "+delay+") --> "+reqUrl);
             setTimeout(function(){
                 res.status(302);
                 res.set('Location', reqUrl);
                 res.send(reqUrl);
-            }, 2000);
+            }, delay);
             return;
         }
     } catch (e) {
@@ -100,7 +173,7 @@ var processRequest = function (req, res, loopcount) {
                                     console.log("PROCESSING DONE");
                                     console.log(url, urlHash, imgPath);
                                     // delete after writing to stream
-                                    fs.unlink(imgPath);
+                                    fs.unlinkSync(imgPath);
                                 });
 
                                 // add base64 decoding if wanted by url parameter
@@ -120,7 +193,11 @@ var processRequest = function (req, res, loopcount) {
                         console.log(url, urlHash, imgPath);
                         console.dir(e);
                         // delete after writing to stream
-                        fs.unlink(imgPath);
+                        try {
+                            fs.unlinkSync(imgPath);
+                        } catch (e) {
+                            console.log("nothing to clean");
+                        }    
                     }
                     }
 
@@ -145,3 +222,5 @@ var processRequest = function (req, res, loopcount) {
 app.get('/', processRequest);
 app.listen(2341);
 console.log('Running on port 2341 - for testing call: http://localhost:2341/?url=http://google.com');
+console.log('CONFIG maxRunningParralelRenderingJobs='+maxRunningParralelRenderingJobs);
+console.log('Make sure service has about '+((maxRunningParralelRenderingJobs+1)*250)+'MB RAM available');
