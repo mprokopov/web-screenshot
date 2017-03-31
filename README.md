@@ -73,6 +73,6 @@ Monitoring results showed that docker conatiner should have available 2 cores an
 
 ## SCALING NOTES
 
-The service is written that way that it renders 2 requests in parallel by default. One rendering take about 5 seconds. If more requests are received and service is busy it hold the request for a short waiting period then will return a HTTP redirect to the same url (adding a bounceCounter to the URL). The bigger the bounceCounter get the longer the waiting period before redirect gets.
+The service is written that way that it renders 2 requests in parallel by default. One rendering take about 5 seconds. If more requests are received and service is busy it hold the request for a short waiting period then will return a HTTP redirect to the same url (adding a bounceCounter to the URL). The bigger the bounceCounter get the longer the waiting period before redirect gets returned to client.
 
 This way the service can proven by the stresstest manage even 250 parrallel renderings requests, but most requests will take a long time to finish. To scale up the service it should be easy to startup multiple service containers and place a load balancer with a simple round robin over all available service containers at the front. So this way if a single service is busy it will return a HTTP redirect to client with basicly the same url, the HTTP client will make a new call to the load balancer and chances are high that this time the balancer directs the client to a idle service container instance. Most HTTP clients tolerate around 20 redirects. 
