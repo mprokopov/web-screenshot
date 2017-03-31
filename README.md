@@ -71,7 +71,7 @@ docker run                                      \
   google/cadvisor:latest 
   ```
 
-Monitoring results showed that docker conatiner should have available 2 cores and with maxRunningParralelRenderingJobs=2 as default config in script, the service should have available up to 750 MB of RAM.
+Monitoring results showed that docker conatiner should have available 2 cores and with maxRunningParralelRenderingJobs=2 as default config in script, the service should have available up to 750 MB of RAM (500 MB per container would be OK too).
 
 ## SCALING NOTES
 
