@@ -36,13 +36,13 @@ docker push rootzoll/web-screenshot
 
 Make sure NodeJS is installed - tested with v6.10.1. (`nvm use`)
 
-INSTALL PHANTOM JS (global)
+### INSTALL PHANTOM JS (global)
 
 To enable Woff support, follow [these steps](http://squallssck.github.io/blog/2013/03/07/about-how-to-make-phantomjs-support-google-web-fonts/).
 
 If you don't need Woff support, just run: `npm install -g phantomjs-prebuilt`.
 
-RUN APP
+### RUN APP
 
 To get the app going, do:
 
