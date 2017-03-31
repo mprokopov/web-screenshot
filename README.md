@@ -14,12 +14,8 @@ You can also get the rendered image data back as a BASE64 encoded string. For th
 ## RUN FROM DOCKER HUB (without git checkout, for production)
 
 ```
-docker pull rootzoll/web-screenshot
-docker run -d --name web-screenshot -p 2341:2341 web-screenshot
-docker logs web-screenshot -f
-```
-
 docker run -d --name web-screenshot -p 2341:2341 rootzoll/web-screenshot
+```
 
 ## BUILD LOCAL AND RUN AS DOCKER CONTAINER (for production)
 
