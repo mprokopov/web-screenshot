@@ -11,6 +11,8 @@ The size of the rendered image is 1024 × 768. You can use the parameter `sc
 
 You can also get the rendered image data back as a BASE64 encoded string. For this option add the pameter value `base64=true` to the url. For example `http://localhost:2341/?base64=true&url=http://google.com`. The returned image is a PNG. So if you want to use the BASE64 string as inline img src data in a HTML page add a `data:image/png;base64,` in front of the service result.
 
+DONT RUN SERVICE ON HTTPS - its all public data, no screts involved. Redirect Load Bouncing will not work with HTTPS.
+
 ## RUN FROM DOCKER HUB (without git checkout, for production)
 
 ```

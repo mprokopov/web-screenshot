@@ -7,11 +7,22 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
  
 public class StressTest {
+
+	// just test with not https server
+	private static String SERVER = "http://localhost:2341";
 	
-	private static final int MYTHREADS = 50;
+	private static final int TOTAL_NUM_OF_REQUESTS = 100;
+	private static final int MYTHREADS = 30;
+	
+	private static long timeStarted = System.currentTimeMillis();
+	private static int countOK = 0;
  
+	private static ExecutorService executor = Executors.newFixedThreadPool(MYTHREADS);
+		
 	public static void main(String args[]) throws Exception {
-		ExecutorService executor = Executors.newFixedThreadPool(MYTHREADS);
+		
+		HttpURLConnection.setFollowRedirects(true);
+		
 		String[] hostList = { 
 				
 				// test websites
@@ -37,7 +48,7 @@ public class StressTest {
 				
 		};
  
-		for (int i = 0; i < 250; i++) {
+		for (int i = 0; i < TOTAL_NUM_OF_REQUESTS; i++) {
  
 			String url = hostList[i%hostList.length];
 			Runnable worker = new MyRunnable(url);
@@ -53,7 +64,9 @@ public class StressTest {
 				Thread.sleep(200);
 			} catch (Exception e) {}
 		}
-		System.out.println("\nFinished all threads");
+		long diffTime = System.currentTimeMillis() - timeStarted;
+		System.out.println("\nFinished all threads -> "+diffTime+" ms");
+		System.out.println(countOK+" requests finished correct of "+TOTAL_NUM_OF_REQUESTS);
 	}
  
 	public static class MyRunnable implements Runnable {
@@ -62,7 +75,7 @@ public class StressTest {
  
 		MyRunnable(String url) {
 			try {
-				url = "http://localhost:2341?url="+URLEncoder.encode(url,"UTF-8");
+				if (!url.startsWith(SERVER)) url = SERVER+"/?url="+URLEncoder.encode(url,"UTF-8");
 			} catch (Exception e) {};
 			this.url = url;
 		}
@@ -83,11 +96,21 @@ public class StressTest {
 				code = connection.getResponseCode();
 				if (code == 200) {
 					result = "OK";
+					countOK++;
 				} else 
 				if (code == 500) {
 					result = "SERVER WAS NOT ABLE TO PROCESS (check Url)";
+					countOK++; // it should be OK because of bad URLs in test set
+				} else 
+				if (code == 302) {
+					result = "EXCPLICIT REDIRECT 302 ("+connection.getHeaderField("Location")+")";
+					try { 
+						Thread.sleep(4000); 
+						Runnable worker = new MyRunnable(connection.getHeaderField("Location"));
+						executor.execute(worker);
+					} catch (Exception e) {}
 				} else {
-				   result = "ERROR("+code+")\t";
+				   result = "ERROR("+code+"/"+connection.getResponseMessage()+")\t";
 				}
 				
 			} catch (Exception e) {

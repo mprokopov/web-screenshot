@@ -73,9 +73,9 @@ var processRequest = function (req, res, loopcount) {
                     // use value from url
                     if (!isNaN(req.query.bounceCounter)) {
                         bounceCounter = req.query.bounceCounter;
-                        if (bounceCounter>100) {
-                            console.log("bounceCounter is VERY HIGH ... limit to 100");
-                            bounceCounter=100;
+                        if (bounceCounter>20) {
+                            console.log("bounceCounter is VERY HIGH ... limit to 20");
+                            bounceCounter=20;
                         }
                         if (bounceCounter<1) {
                             console.log("bounceCounter is NOT POSITIVE ... set to 1");
@@ -93,7 +93,7 @@ var processRequest = function (req, res, loopcount) {
             } catch (e) { console.log("FAIL on bounceCounter upcounting"); }
 
             // calculate delay until rebound
-            var delay = bounceCounter * 2000;
+            var delay = (bounceCounter * 1000) + 1;
 
             // add bounceCounter to redirect url
             reqUrl = reqUrl + "&bounceCounter=" + bounceCounter;
@@ -113,7 +113,13 @@ var processRequest = function (req, res, loopcount) {
     runningProcessCounter++;
 
     try {
-    
+
+    if (typeof req.query.url == "undefined") {
+        res.status(500);
+        res.send("missing parameter 'url'");
+        return;
+    }
+
     var scale = ((req.query.scale) && (!isNaN(req.query.scale))) ? req.query.scale : '1';
     if (scale>5) scale=5;
     if (scale<0.01) scale=0.01;
