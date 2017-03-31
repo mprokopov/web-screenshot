@@ -113,9 +113,12 @@ var processRequest = function (req, res, loopcount) {
     runningProcessCounter++;
 
     try {
+    
+    var scale = ((req.query.scale) && (!isNaN(req.query.scale))) ? req.query.scale : '1';
+    if (scale>5) scale=5;
+    if (scale<0.01) scale=0.01;
 
     var url = req.query.url,
-        scale = req.query.scale ? req.query.scale : '1',
         urlHash = crypto.createHash('md5').update(url + '-scale:1').digest('hex'),
         imgHash = crypto.createHash('md5').update(url + '-scale:' + scale).digest('hex'),
         imgOriginalPath = 'screenshots/' + urlHash + '.png',
@@ -173,7 +176,11 @@ var processRequest = function (req, res, loopcount) {
                                     console.log("PROCESSING DONE");
                                     console.log(url, urlHash, imgPath);
                                     // delete after writing to stream
-                                    fs.unlinkSync(imgPath);
+                                    try {
+                                        fs.unlinkSync(imgPath);
+                                    } catch (e) {
+                                        console.log("NO SUCCESS cleaning "+imgPath+" - tolerate and continue");
+                                    }
                                 });
 
                                 // add base64 decoding if wanted by url parameter
