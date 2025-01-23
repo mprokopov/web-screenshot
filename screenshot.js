@@ -3,7 +3,6 @@ var express = require('express'),
     crypto = require('crypto'),
     fs = require('fs'),
     sharp = require('sharp'),
-    stream = require('stream'),
     puppeteer = require('puppeteer'),
     base64 = require('base64-stream');
 
@@ -158,7 +157,7 @@ var processRequest = async function (req, res, loopcount) {
         await new Promise(resolve => setTimeout(resolve, options.renderDelay));
         await page.screenshot({
             path: imgOriginalPath,
-            fullPage: true
+            fullPage: false
         });
         await browser.close();
 

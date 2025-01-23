@@ -4,7 +4,6 @@
   "dependencies": {
     "base64-stream": "^1.0.0",
     "express": "^4.21.2",
-    "phantomjs-prebuilt": "^2.1.16",
     "puppeteer": "^24.1.0",
     "sharp": "^0.33.5",
     "webshot": "^0.18.0"

@@ -1,4 +1,4 @@
-FROM node:6.10.1
+FROM node:latest
 
 # create a new user
 RUN useradd --user-group --create-home --shell /bin/false app
