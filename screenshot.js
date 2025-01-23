@@ -1,10 +1,10 @@
-var webshot = require('webshot'),
-    express = require('express'),
+var express = require('express'),
     app = express(),
     crypto = require('crypto'),
     fs = require('fs'),
-    lwip = require('lwip');
-    stream = require('stream');
+    sharp = require('sharp'),
+    stream = require('stream'),
+    puppeteer = require('puppeteer'),
     base64 = require('base64-stream');
 
 ///////////
@@ -38,7 +38,7 @@ var removeURLParameter = function(url, parameter) {
     }
 };
 
-var processRequest = function (req, res, loopcount) {
+var processRequest = async function (req, res, loopcount) {
 
     console.log("**************************");
     var reqUrl = req.protocol + '://' + req.get('Host') + req.url;
@@ -141,84 +141,75 @@ var processRequest = function (req, res, loopcount) {
         console.log("PROCESSING START");
         console.log(url, urlHash, imgPath);
 
-        webshot(url, imgOriginalPath, options, function (err) {
-            if (err) {
-
-                /*
-                 * FAIL
-                 */
-
-                res.status(500);
-                res.send('An error occured: ' + err);
-                console.error(err);
-
-            } else {
-
-                /*
-                 * WIN
-                 */
-                res.setHeader('Content-Type', 'image/png');
-                lwip.open(imgOriginalPath, function (err, image) {
-                    try {
-                        image.batch()
-                            .scale(parseFloat(scale))
-                            .writeFile(imgPath, function (err) {
-                                if (err) {
-                                    res.status(500);
-                                    res.send('An error occured: ' + err);
-                                    console.error(err);
-                                    runningProcessCounter--;
-                                    return;
-                                }
-                                var stream = fs.createReadStream(imgPath)
-                                .on('error', function (err) {
-                                        res.status(500);
-                                        res.send('An error occured: ' + err);
-                                        console.error(err);
-                                        runningProcessCounter--;
-                                        return;
-                                })
-                                .on('close', function () {
-                                    console.log("PROCESSING DONE");
-                                    console.log(url, urlHash, imgPath);
-                                    // delete after writing to stream
-                                    try {
-                                        fs.unlinkSync(imgPath);
-                                    } catch (e) {
-                                        console.log("NO SUCCESS cleaning "+imgPath+" - tolerate and continue");
-                                    }
-                                });
-
-                                // add base64 decoding if wanted by url parameter
-                                if (req.query.base64) {
-                                    console.log("Content-Transfer-Encoding > BASE64");
-                                    res.setHeader('Content-Transfer-Encoding', 'base64');
-                                    //res.send('data:image/png;base64,');
-                                    stream.pipe(base64.encode())
-                                    .pipe(res);
-                                } else {
-                                    stream.pipe(res);
-                                }
-                            });
-
-                    } catch (e) {
-                        console.log("FAIL - try to clean up:"+e);
-                        console.log(url, urlHash, imgPath);
-                        console.dir(e);
-                        // delete after writing to stream
-                        try {
-                            fs.unlinkSync(imgPath);
-                        } catch (e) {
-                            console.log("nothing to clean");
-                        }    
-                    }
-                    }
-
-                    );
-                }
-                runningProcessCounter--;
-
+        const browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
+        const page = await browser.newPage();
+        await page.goto(url, {
+            waitUntil: 'networkidle0',
+            timeout: 30000
+        });
+        await page.setViewport({
+            width: 1024,
+            height: 768,
+            deviceScaleFactor: 1
+        });
+        await new Promise(resolve => setTimeout(resolve, options.renderDelay));
+        await page.screenshot({
+            path: imgOriginalPath,
+            fullPage: true
+        });
+        await browser.close();
+
+        /*
+         * WIN
+         */
+        res.setHeader('Content-Type', 'image/png');
+        
+        // Check if we need to scale
+        if (scale === '1') {
+            // If no scaling needed, use original file directly
+            var stream = fs.createReadStream(imgOriginalPath)
+        } else {
+            // If scaling needed, create a new scaled file
+            await sharp(imgOriginalPath)
+                .resize({ scale: parseFloat(scale) })
+                .png()
+                .toFile(imgPath);
+            var stream = fs.createReadStream(imgPath);
+        }
+
+        stream.on('error', function (err) {
+            res.status(500);
+            res.send('An error occured: ' + err);
+            console.error(err);
+            runningProcessCounter--;
+            return;
+        })
+        .on('close', function () {
+            console.log("PROCESSING DONE");
+            console.log(url, urlHash, imgPath);
+            // delete after writing to stream
+            try {
+                if (scale !== '1') {  // Only delete scaled image
+                    fs.unlinkSync(imgPath);
+                }
+                fs.unlinkSync(imgOriginalPath);  // Always delete original
+            } catch (e) {
+                console.log("NO SUCCESS cleaning temp files - tolerate and continue");
+            }
+        });
+
+        // add base64 decoding if wanted by url parameter
+        if (req.query.base64) {
+            console.log("Content-Transfer-Encoding > BASE64");
+            res.setHeader('Content-Transfer-Encoding', 'base64');
+            stream.pipe(base64.encode())
+                .pipe(res);
+        } else {
+            stream.pipe(res);
+        }
 
     } catch (e) {
         res.status(500);
@@ -226,13 +217,23 @@ var processRequest = function (req, res, loopcount) {
         console.error(url, urlHash, imgPath);
         res.send('An error occured: ' + JSON.stringify(e));
         console.error(e);
-        runningProcessCounter++;
+        runningProcessCounter--;
         return;  
     }
 
 };
 
-app.get('/', processRequest);
+app.get('/', (req, res) => processRequest(req, res));
+
+// Add healthcheck endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        runningProcesses: runningProcessCounter
+    });
+});
+
 app.listen(2341);
 console.log('Running on port 2341 - for testing call: http://localhost:2341/?url=http://google.com');
 console.log('CONFIG maxRunningParralelRenderingJobs='+maxRunningParralelRenderingJobs);
