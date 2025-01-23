@@ -222,7 +222,7 @@ var processRequest = async function (req, res, loopcount) {
 
 };
 
-app.get('/', (req, res) => processRequest(req, res));
+app.get('/screenshot', (req, res) => processRequest(req, res));
 
 // Add healthcheck endpoint
 app.get('/health', (req, res) => {
