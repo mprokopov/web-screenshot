@@ -1,20 +1,41 @@
-FROM node:latest
+# Build stage
+FROM node:22-slim AS builder
 
-# create a new user
-RUN useradd --user-group --create-home --shell /bin/false app
+WORKDIR /build
+COPY package*.json ./
+RUN npm ci --only=production
 
-#Create directory structure
-ENV HOME=/home/app
-ADD ./package.json $HOME/package.json
-ADD ./screenshots $HOME/screenshots
-ADD ./screenshot.js $HOME/screenshot.js
+# Final stage
+FROM node:22-slim
 
-ENV NODE_PATH=$HOME/node_modules
+# Install Chrome dependencies and Chrome itself
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y \
+    google-chrome-stable \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-kacst \
+    fonts-freefont-ttf
 
-RUN chown -R app:app $HOME/*
+WORKDIR /app
 
-#Change to the new user
-USER app
-WORKDIR $HOME
-RUN npm install
-CMD ["node", "./screenshot.js"]
+# Copy only the necessary files from builder
+COPY --from=builder /build/node_modules ./node_modules
+COPY screenshots ./screenshots
+COPY screenshot.js .
+
+# Set environment variable to tell Puppeteer where Chrome is installed
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
+# Fix permissions for the screenshots directory
+RUN mkdir -p /app/screenshots && chown -R node:node /app/screenshots
+
+# Run as non-root user for security
+USER node
+CMD ["node", "screenshot.js"]
